@@ -29,12 +29,12 @@
             justify-content: center;
             padding: 20px;
             overflow: auto;
+            background: #1a1a1a;
         }
 
         #canvas-container {
             cursor: crosshair;
             box-shadow: 0 0 20px rgba(0,0,0,0.5);
-            background: #333;
         }
 
         canvas { max-width: 100%; display: block; }
@@ -57,11 +57,12 @@
             font-weight: bold;
             width: 100%;
             margin-bottom: 10px;
+            color: #000;
         }
 
         .secondary { background: #333; color: white; }
+        .danger { background: #cf6679; color: #000; }
 
-        /* The Big Box */
         #output-box {
             flex-grow: 1;
             width: 100%;
@@ -92,11 +93,12 @@
     <input type="file" id="uploader" accept="image/*">
     
     <button class="secondary" id="undo-btn">Undo Last</button>
+    <button class="danger" id="reset-btn">Reset HEX List</button>
     
     <textarea id="output-box" placeholder="HEX codes will appear here..."></textarea>
     
     <p style="font-size: 12px; color: #888; margin-top: 10px;">
-        Click image to add colors. Refresh to reset.
+        Click image to add colors.
     </p>
 </div>
 
@@ -106,10 +108,14 @@
     const uploader = document.getElementById('uploader');
     const outputBox = document.getElementById('output-box');
     const undoBtn = document.getElementById('undo-btn');
+    const resetBtn = document.getElementById('reset-btn');
     
     let colors = [];
 
     uploader.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
         const reader = new FileReader();
         reader.onload = (event) => {
             const img = new Image();
@@ -120,18 +126,23 @@
             };
             img.src = event.target.result;
         };
-        reader.readAsDataURL(e.target.files[0]);
+        reader.readAsDataURL(file);
     });
 
     canvas.addEventListener('click', (e) => {
         if (canvas.width === 0) return;
+        
         const rect = canvas.getBoundingClientRect();
         const scaleX = canvas.width / rect.width;
         const scaleY = canvas.height / rect.height;
+        
         const x = (e.clientX - rect.left) * scaleX;
         const y = (e.clientY - rect.top) * scaleY;
 
         const p = ctx.getImageData(x, y, 1, 1).data;
+        // Ensure we don't pick from empty canvas area
+        if (p[3] === 0 && colors.length === 0) return; 
+
         const hex = "#" + ((1 << 24) + (p[0] << 16) + (p[1] << 8) + p[2]).toString(16).slice(1).toUpperCase();
         
         colors.push(hex);
@@ -140,6 +151,11 @@
 
     undoBtn.addEventListener('click', () => {
         colors.pop();
+        updateDisplay();
+    });
+
+    resetBtn.addEventListener('click', () => {
+        colors = [];
         updateDisplay();
     });
 
