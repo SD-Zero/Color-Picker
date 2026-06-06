@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Color Picker</title>
+    <style>
+        :root {
+            --bg: #121212;
+            --panel: #1e1e1e;
+            --text: #e0e0e0;
+            --accent: #bb86fc;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            background-color: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+        }
+
+        /* Canvas Area */
+        #main {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow: auto;
+        }
+
+        #canvas-container {
+            position: relative;
+            cursor: crosshair;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        canvas {
+            max-width: 100%;
+            display: block;
+        }
+
+        /* Sidebar */
+        #sidebar {
+            width: 300px;
+            background-color: var(--panel);
+            border-left: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+        }
+
+        button {
+            background: var(--accent);
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        button.secondary {
+            background: #333;
+            color: white;
+        }
+
+        button:hover { opacity: 0.9; }
+
+        #color-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .color-item {
+            display: flex;
+            align-items: center;
+            background: #2a2a2a;
+            margin-bottom: 8px;
+            padding: 10px;
+            border-radius: 6px;
+            animation: slideIn 0.2s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(20px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .swatch {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            margin-right: 12px;
+            border: 1px solid #444;
+        }
+
+        .hex-code {
+            font-family: monospace;
+            flex-grow: 1;
+        }
+
+        .copy-btn {
+            background: none;
+            color: var(--accent);
+            width: auto;
+            margin: 0;
+            padding: 5px;
+            font-size: 12px;
+        }
+
+        input[type="file"] { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="main">
+    <div class="controls">
+        <label for="uploader" class="button">
+            <button onclick="document.getElementById('uploader').click()">Upload Image</button>
+        </label>
+        <input type="file" id="uploader" accept="image/*">
+    </div>
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+    </div>
+</div>
+
+<div id="sidebar">
+    <h3>Color Palette</h3>
+    <button class="secondary" id="undo-btn">Undo Last</button>
+    <ul id="color-list"></ul>
+    <p style="font-size: 11px; color: #888;">Click the image to pick colors.</p>
+</div>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const uploader = document.getElementById('uploader');
+    const colorList = document.getElementById('color-list');
+    const undoBtn = document.getElementById('undo-btn');
+    
+    let colors = [];
+
+    // Handle Image Upload
+    uploader.addEventListener('change', (e) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(e.target.files[0]);
+    });
+
+    // Color Picking Logic
+    canvas.addEventListener('click', (e) => {
+        if (canvas.width === 0) return;
+
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+
+        const pixel = ctx.getImageData(x, y, 1, 1).data;
+        const hex = rgbToHex(pixel[0], pixel[1], pixel[2]);
+        
+        addColor(hex);
+    });
+
+    function rgbToHex(r, g, b) {
+        return "#" + [r, g, b].map(x => {
+            const hex = x.toString(16);
+            return hex.length === 1 ? "0" + hex : hex;
+        }).join("");
+    }
+
+    function addColor(hex) {
+        colors.push(hex);
+        renderList();
+    }
+
+    undoBtn.addEventListener('click', () => {
+        colors.pop();
+        renderList();
+    });
+
+    function renderList() {
+        colorList.innerHTML = '';
+        colors.slice().reverse().forEach((hex, index) => {
+            const li = document.createElement('li');
+            li.className = 'color-item';
+            li.innerHTML = `
+                <div class="swatch" style="background: ${hex}"></div>
+                <span class="hex-code">${hex.toUpperCase()}</span>
+                <button class="copy-btn" onclick="copyToClipboard('${hex}')">Copy</button>
+            `;
+            colorList.appendChild(li);
+        });
+    }
+
+    window.copyToClipboard = (text) => {
+        navigator.clipboard.writeText(text.toUpperCase());
+        alert('Copied: ' + text.toUpperCase());
+    };
+</script>
+
+</body>
+</html>
